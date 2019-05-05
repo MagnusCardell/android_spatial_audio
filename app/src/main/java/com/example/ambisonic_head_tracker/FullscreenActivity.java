@@ -37,6 +37,8 @@ import com.google.android.exoplayer2.util.Util;
 import com.google.vr.sdk.audio.GvrAudioEngine;
 import com.google.vr.sdk.base.GvrView;
 import com.google.vr.sdk.base.GvrActivity;
+
+import java.io.IOException;
 import java.util.Locale;
 
 /**
@@ -141,11 +143,12 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
         modelPosition = new float[] {0.0f, 0.0f, -7.0f / 2.0f};
 
 
-        boolean success = gvrAudioEngine.preloadSoundFile("android_asset/hungarian_dance.mp3");
-        sourceId = gvrAudioEngine.createSoundObject("file:///android_asset/hungarian_dance.mp3");
+
+        //boolean success = gvrAudioEngine.preloadSoundFile("file:///android_asset/hungarian_dance.mp3");
+        sourceId = gvrAudioEngine.createSoundObject("cube_sound.wav");
         gvrAudioEngine.setSoundObjectPosition(sourceId, modelPosition[0], modelPosition[1], modelPosition[2]);
 
-        //gvrAudioEngine.playSound(sourceId, true /* looped playback */);
+        gvrAudioEngine.playSound(sourceId, true /* looped playback */);
         // Preload an unspatialized sound to be played on a successful trigger on the cube.
     }
     @Override
@@ -175,9 +178,9 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
             gvrAudioProcessor.updateOrientation(mR[0], mR[1],
                     mR[2], mR[3]);
         }
-        //gvrAudioEngine.setHeadRotation(mLastMagnetometer[0], mLastMagnetometer[1], mLastMagnetometer[2], mLastMagnetometer[3]);
+        gvrAudioEngine.setHeadRotation(mR[0], mR[1], mR[2], mR[3]);
         // Regular update call to GVR audio engine.
-        //gvrAudioEngine.update();
+        gvrAudioEngine.update();
     }
 
     @Override
@@ -187,7 +190,7 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
     @Override
     protected void onPause() {
         super.onPause();
-        //gvrAudioEngine.pause();
+        gvrAudioEngine.pause();
         // Don't receive any more updates from either sensor.
         mSensorManager.unregisterListener(this);
         player.release();
@@ -196,7 +199,7 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
     @Override
     protected void onResume() {
         super.onResume();
-        //gvrAudioEngine.resume();
+        gvrAudioEngine.resume();
         mLastAccelerometerSet = false;
         mLastMagnetometerSet = false;
         mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
