@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Ambisonic_head_tracker</string>
+
+    <string name="dummy_button">Start</string>
+    <string name="dummy_content">Head tracker</string>
+    <string name="x_c">0</string>
+    <string name="y_c">0</string>
+    <string name="z_c">0</string>
+</resources>
