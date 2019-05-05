@@ -6,4 +6,6 @@
     <string name="x_c">0</string>
     <string name="y_c">0</string>
     <string name="z_c">0</string>
+
+    <string name="title_activity_player">PlayerActivity</string>
 </resources>
