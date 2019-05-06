@@ -1,7 +1,14 @@
 <resources>
     <string name="app_name">Ambisonic_head_tracker</string>
 
-    <string name="dummy_button">Start</string>
+    <string name="dummy_button">Debug robot (fast)</string>
+    <string name="play_robot">Play robot</string>
+    <string name="play_clairdelune">Clair de lune </string>
+    <string name="play_canon">Canon in d</string>
+    <string name="play_furelise">Fur Elise</string>
+    <string name="play_ridevalkyrie">Ride of valkyries</string>
+    <string name="play_fourseasons">Four seasons</string>
+
     <string name="dummy_content">Head tracker</string>
     <string name="x_c">0</string>
     <string name="y_c">0</string>
