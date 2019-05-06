@@ -1,61 +1,38 @@
 package com.example.ambisonic_head_tracker;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
-import android.content.Intent;
-import android.content.res.AssetFileDescriptor;
-import android.content.res.AssetManager;
-import android.content.res.Resources;
 import android.hardware.SensorEventListener;
-import android.net.Uri;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.EditText;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorManager;
 import android.widget.TextView;
-
-import com.google.android.exoplayer2.DefaultRenderersFactory;
-import com.google.android.exoplayer2.ExoPlayerFactory;
-import com.google.android.exoplayer2.RenderersFactory;
-import com.google.android.exoplayer2.SimpleExoPlayer;
-import com.google.android.exoplayer2.audio.AudioProcessor;
-import com.google.android.exoplayer2.ext.gvr.GvrAudioProcessor;
-import com.google.android.exoplayer2.source.ExtractorMediaSource;
-import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.TrackSelector;
-import com.google.android.exoplayer2.ui.PlayerView;
-import com.google.android.exoplayer2.upstream.DataSource;
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-import com.google.android.exoplayer2.util.Util;
 import com.google.vr.sdk.audio.GvrAudioEngine;
-import com.google.vr.sdk.base.GvrView;
-import com.google.vr.sdk.base.GvrActivity;
-
-import java.io.IOException;
 import java.util.Locale;
 
-/**
- * An example full-screen activity that shows and hides the system UI (i.e.
- * status bar and navigation/system bar) with user interaction.
- */
 public class FullscreenActivity extends AppCompatActivity implements SensorEventListener {
     //3D audio renderer
-    private String OBJECT_SOUND_FILE = "file:///android_asset/cube.wav";
-    private static final String SUCCESS_SOUND_FILE = "res/raw/success.wav";
     private GvrAudioEngine gvrAudioEngine;
     private volatile int sourceId = GvrAudioEngine.INVALID_ID;
-    private volatile int successSourceId = GvrAudioEngine.INVALID_ID;
     protected float[] modelPosition;
 
-    GvrAudioProcessor gvrAudioProcessor;
-    private SimpleExoPlayer player;
+    //Sensor managers
+    private SensorManager systemSensorManager;
+    private Sensor mAccelerometer;
+    private Sensor mMagnetometer;
+
+    //Sensor variables
+    private float[] mLastAccelerometer = new float[3];
+    private float[] mLastMagnetometer = new float[3];
+    private boolean mLastAccelerometerSet = false;
+    private boolean mLastMagnetometerSet = false;
+    private float[] mR = new float[9];
+    private float[] mOrientation = new float[3];
     /**
      * Whether or not the system UI should be auto-hidden after
      * {@link #AUTO_HIDE_DELAY_MILLIS} milliseconds.
@@ -78,18 +55,6 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
     private View mControlsView;
     private boolean mVisible;
 
-    //Sensor managers
-    private SensorManager mSensorManager;
-    private Sensor mAccelerometer;
-    private Sensor mMagnetometer;
-
-    private float[] mLastAccelerometer = new float[3];
-    private float[] mLastMagnetometer = new float[3];
-    private boolean mLastAccelerometerSet = false;
-    private boolean mLastMagnetometerSet = false;
-
-    private float[] mR = new float[9];
-    private float[] mOrientation = new float[3];
 
 
     @Override
@@ -103,9 +68,9 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
         mContentView = findViewById(R.id.fullscreen_content);
 
         //setup sensor data
-        mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
-        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        mMagnetometer = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        systemSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+        mAccelerometer = systemSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mMagnetometer = systemSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
 
         // Set up the user interaction to manually show or hide the system UI.
         mContentView.setOnClickListener(new View.OnClickListener() {
@@ -115,42 +80,31 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
             }
         });
 
-        //Setup media interaction
-        TrackSelector trackSelector = new DefaultTrackSelector();
-        RenderersFactory renderersFactory = new DefaultRenderersFactory(this) {
-            @Override
-            public AudioProcessor[] buildAudioProcessors() {
-                gvrAudioProcessor = new GvrAudioProcessor();
-                return new AudioProcessor[] {gvrAudioProcessor};
-            }
-        };
-        player = ExoPlayerFactory.newSimpleInstance(this, renderersFactory, trackSelector);
-
-        PlayerView playerView = findViewById(R.id.player_view);
-        playerView.setPlayer(player);
-        DataSource.Factory dataSourceFactory = new DefaultDataSourceFactory(this,
-                Util.getUserAgent(this, "Ambisonic_head_tracker"));
-        Uri audioSourceUri = Uri.parse("file:///android_asset/hungarian_dance.mp3");
-        MediaSource audioSource = new ExtractorMediaSource.Factory(dataSourceFactory).createMediaSource(audioSourceUri);
-        //player.prepare(audioSource);
-        //player.setPlayWhenReady(true);
 
         // Upon interacting with UI controls, delay any scheduled hide()
         // operations to prevent the jarring behavior of controls going away
         // while interacting with the UI.
         findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
+
+        //setup google vr engine
         gvrAudioEngine = new GvrAudioEngine(this, GvrAudioEngine.RenderingMode.BINAURAL_HIGH_QUALITY);
-        modelPosition = new float[] {0.0f, 0.0f, -7.0f / 2.0f};
+        modelPosition = new float[] {0.0f, 7.0f, 7.0f};
 
+        new Thread(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        //boolean success = gvrAudioEngine.preloadSoundFile("ride_of_the_valkyries.mp3"); //for debuggin purposes
+                        gvrAudioEngine.preloadSoundFile("ride_of_the_valkyries.mp3");
+                        sourceId = gvrAudioEngine.createSoundObject("ride_of_the_valkyries.mp3");
+                        gvrAudioEngine.setSoundObjectPosition(sourceId, modelPosition[0], modelPosition[1], modelPosition[2]);
 
-
-        //boolean success = gvrAudioEngine.preloadSoundFile("file:///android_asset/hungarian_dance.mp3");
-        sourceId = gvrAudioEngine.createSoundObject("cube_sound.wav");
-        gvrAudioEngine.setSoundObjectPosition(sourceId, modelPosition[0], modelPosition[1], modelPosition[2]);
-
-        gvrAudioEngine.playSound(sourceId, true /* looped playback */);
-        // Preload an unspatialized sound to be played on a successful trigger on the cube.
+                        gvrAudioEngine.playSound(sourceId, true /* looped playback */);
+                    }
+                })
+                .start();
     }
+
     @Override
     public void onSensorChanged(SensorEvent event) {
 
@@ -162,25 +116,20 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
             mLastMagnetometerSet = true;
         }
         if (mLastAccelerometerSet && mLastMagnetometerSet) {
-            SensorManager.getRotationMatrix(mR, null, mLastAccelerometer, mLastMagnetometer);
-            SensorManager.getOrientation(mR, mOrientation);
-            //update UI
-            TextView xView = (TextView) findViewById(R.id.x_c);
-            TextView yView = (TextView) findViewById(R.id.y_c);
-            TextView zView = (TextView) findViewById(R.id.z_c);
+            android.hardware.SensorManager.getRotationMatrix(mR, null, mLastAccelerometer, mLastMagnetometer);
+            android.hardware.SensorManager.getOrientation(mR, mOrientation);
+        }
+        TextView xView = (TextView) findViewById(R.id.x_c);
+        TextView yView = (TextView) findViewById(R.id.y_c);
+        TextView zView = (TextView) findViewById(R.id.z_c);
 
-            xView.setText(String.format(Locale.getDefault(), "%.2f", mR[0]));
-            yView.setText(String.format(Locale.getDefault(), "%.2f", mR[1]));
-            zView.setText(String.format(Locale.getDefault(), "%.2f", mR[2]));
-        }
-        if (gvrAudioProcessor != null) {
-            //headTransform.getQuaternion(headOrientation, 0);
-            gvrAudioProcessor.updateOrientation(mR[0], mR[1],
-                    mR[2], mR[3]);
-        }
+        xView.setText(String.format(Locale.getDefault(), "%.2f", mR[0]));
+        yView.setText(String.format(Locale.getDefault(), "%.2f", mR[1]));
+        zView.setText(String.format(Locale.getDefault(), "%.2f", mR[2]));
+
         gvrAudioEngine.setHeadRotation(mR[0], mR[1], mR[2], mR[3]);
-        // Regular update call to GVR audio engine.
         gvrAudioEngine.update();
+
     }
 
     @Override
@@ -191,9 +140,7 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
     protected void onPause() {
         super.onPause();
         gvrAudioEngine.pause();
-        // Don't receive any more updates from either sensor.
-        mSensorManager.unregisterListener(this);
-        player.release();
+        systemSensorManager.unregisterListener(this);
     }
 
     @Override
@@ -202,22 +149,17 @@ public class FullscreenActivity extends AppCompatActivity implements SensorEvent
         gvrAudioEngine.resume();
         mLastAccelerometerSet = false;
         mLastMagnetometerSet = false;
-        mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-        mSensorManager.registerListener(this, mMagnetometer, SensorManager.SENSOR_DELAY_NORMAL);
+        systemSensorManager.registerListener(this, mAccelerometer, android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
+        systemSensorManager.registerListener(this, mMagnetometer, android.hardware.SensorManager.SENSOR_DELAY_NORMAL);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        player.release();
     }
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
-
-        // Trigger the initial hide() shortly after the activity has been
-        // created, to briefly hint to the user that UI controls
-        // are available.
         delayedHide(100);
     }
 
